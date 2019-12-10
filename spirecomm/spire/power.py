@@ -25,5 +25,9 @@ class Power:
             card = spirecomm.spire.card.Card.from_json(card)
         return cls(power_id, name, amount, damage, misc, just_applied, card)
 
+    def endOfTurn(self):
+        #TODO: implement this
+        pass
+
     def __eq__(self, other):
         return self.power_id == other.power_id and self.amount == other.amount

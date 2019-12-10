@@ -1,6 +1,5 @@
 import os
 import collections
-
 import spirecomm.communication.coordinator as coord
 
 os.environ["KIVY_NO_CONSOLELOG"] = "1"
@@ -11,7 +10,6 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.clock import Clock
 from kivy.core.window import Window
-
 
 class Base(BoxLayout):
 
@@ -76,6 +74,9 @@ def launch_gui():
     communication_coordinator.signal_ready()
     CommunicationApp(communication_coordinator).run()
 
-
 if __name__ == "__main__":
+
+    print("hi")
     launch_gui()
+    print("bye")
+

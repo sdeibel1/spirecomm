@@ -60,20 +60,33 @@ class Character:
         self.block = block
         self.powers = []
 
+    def on_start_turn(self):
+        for p in self.powers:
+            p.on_start_turn()
+
+    def on_end_turn(self):
+        for p in self.powers:
+            p.on_end_turn()
+
 
 class Player(Character):
 
-    def __init__(self, max_hp, current_hp=None, block=0, energy=0):
+    def __init__(self, max_hp, hand, current_hp=None, block=0, energy=0):
         super().__init__(max_hp, current_hp, block)
         self.energy = energy
         self.orbs = []
+        self.hand = hand
 
     @classmethod
     def from_json(cls, json_object):
-        player = cls(json_object["max_hp"], json_object["current_hp"], json_object["block"], json_object["energy"])
+        player = cls(json_object["max_hp"], json_object["current_hp"], json_object["block"], json_object["energy"],
+                     json_object["combat_state"]["hand"])
         player.powers = [Power.from_json(json_power) for json_power in json_object["powers"]]
         player.orbs = [Orb.from_json(orb) for orb in json_object["orbs"]]
         return player
+
+    def can_play(self, card):
+        return True if self.energy >= card.cost else False
 
 
 class Monster(Character):

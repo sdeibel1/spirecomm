@@ -9,3 +9,7 @@ class Relic:
     @classmethod
     def from_json(cls, json_object):
         return cls(json_object["id"], json_object["name"], json_object["counter"], json_object.get("price", 0))
+
+    def on_start_turn(self):
+        #TODO: implement
+        pass

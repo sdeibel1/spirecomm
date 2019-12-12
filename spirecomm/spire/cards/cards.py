@@ -2,10 +2,14 @@ from random import random
 
 import spirecomm.spire.powers.powers as p
 import spirecomm.spire.card
+from spirecomm.ai import combatSim
 
 
 # TODO: where to put this?
 # TODO: implement powers.apply
+
+def draw(n):
+    combatSim.draw(n)
 
 class SimCard:
 
@@ -17,11 +21,6 @@ class SimCard:
         card_method = card.card_id.replace(" ", "_")
         globals()[card_method]()
 
-        if card.exhausts:
-            # TODO: deck
-            deck.remove(card)
-        # TODO: fix player
-        player.energy -= cls.cost
 
     def damage(self, base, add):
         """
@@ -55,10 +54,6 @@ class SimCard:
         else:
             player.hand.pop(random.randint(0, len(player.hand)-1))
 
-    def draw(self, n):
-        # TODO: implement draw in player
-        self.target.draw(n)
-
     def get_shiv(self):
         # TODO: implement getShiv
         pass
@@ -81,12 +76,12 @@ class SimCard:
         self.discard(-1)
 
     def Acrobatics(self):
-        self.draw(3)
+        draw(3)
         self.discard(self.target)  # self.target is the chosen card to discard here
 
     def Backflip(self):
         self.block(5,3)
-        self.draw(2)
+        draw(2)
 
     def Bane(self):
         self.damage(7,3)
@@ -108,7 +103,7 @@ class SimCard:
 
     def Dagger_Throw(self):
         self.damage(9,3)
-        self.draw(1)
+        draw(1)
         self.discard(1)
 
     def Deadly_Poison(self):
@@ -139,12 +134,12 @@ class SimCard:
         self.poison(3,1)
 
     def Prepared(self):
-        self.draw(1+self.upgrades)
+        draw(1+self.upgrades)
         self.discard(1+self.upgrades)
 
     def Quick_Slash(self):
         self.damage(8,4)
-        self.draw(1)
+        draw(1)
 
     def Slice(self):
         self.damage(5,8)

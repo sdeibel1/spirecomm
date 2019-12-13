@@ -12,17 +12,29 @@ from spirecomm.spire.powers.powers import SimPower as p
 
 class CombatSim:
 
-    player = Player()
-    deck = []
-    relics = []
-    potions = []
-    hand = []
-    draw_pile = []
-    discard_pile = []
-    exhaust_pile = []
-    monsters = []
+    def __init__(self, state):
+        self.player = state['player']
+        self.deck = state['deck']
+        self.relics = state['relics']
+        self.potions = state['potions']
+        self.hand = state['hand']
+        self.draw_pile = state['draw_pile']
+        self.discard_pile = state['discard_pile']
+        self.exhaust_pile = state['exhaust_pile']
+        self.monsters = state['monsters']
 
-    def __init__(self, game_state, numIter):
+        # combat_state = game_state['combat_state']
+        # self.player = Player.from_json(game_state)
+        # self.deck = [Card.from_json(c) for c in game_state['deck']]
+        # self.relics = [Relic.from_json(r) for r in game_state['relics']]
+        # self.potions = [Potion.from_json(p) for p in game_state['potions']]
+        # self.hand = [Card.from_json(c) for c in combat_state['hand']]
+        # self.draw_pile = [Card.from_json(c) for c in combat_state['draw_pile']]
+        # self.discard_pile = []
+        # self.exhaust_pile = []
+        # self.monsters = [Monster.from_json(m) for m in combat_state['monsters']]
+
+        # for card playing
         self.target = None
         self.upgrades = 0
         self.cost = 0
@@ -31,17 +43,39 @@ class CombatSim:
         self.glass_knife_count = 0
 
     @classmethod
-    def change_state(cls, game_state):
+    def from_json(cls, game_state):
         combat_state = game_state['combat_state']
-        cls.player = Player.from_json(game_state)
-        cls.deck = [Card.from_json(c) for c in game_state['deck']]
-        cls.relics = [Relic.from_json(r) for r in game_state['relics']]
-        cls.potions = [Potion.from_json(p) for p in game_state['potions']]
-        cls.hand = [Card.from_json(c) for c in combat_state['hand']]
-        cls.draw_pile = [Card.from_json(c) for c in combat_state['draw_pile']]
-        cls.discard_pile = []
-        cls.exhaust_pile = []
-        cls.monsters = [Monster.from_json(m) for m in combat_state['monsters']]
+        state = {'player': Player.from_json(game_state),
+                 'deck': [Card.from_json(c) for c in game_state['deck']],
+                 'relics': [Relic.from_json(r) for r in game_state['relics']],
+                 'potions': [Potion.from_json(p) for p in game_state['potions']],
+                 'hand': [Card.from_json(c) for c in combat_state['hand']],
+                 'draw_pile': [Card.from_json(c) for c in combat_state['draw_pile']],
+                 'discard_pile': [],
+                 'exhaust_pile': [],
+                 'monsters': [Monster.from_json(m) for m in combat_state['monsters']]}
+        return CombatSim(state)
+
+    def get_state(self):
+        return {'player': self.player,
+                'deck': self.deck,
+                'relics': self.relics,
+                'potions': self.potions,
+                'hand': self.hands,
+                'draw_pile': self.draw_pile,
+                'discard_pile': self.discard_pile,
+                'monsters': self.monsters}
+
+    def change_state(self, state):
+        self.player = state['player']
+        self.deck = state['deck']
+        self.relics = state['relics']
+        self.potions = state['potions']
+        self.hand = state['hand']
+        self.draw_pile = state['draw_pile']
+        self.discard_pile = state['discard_pile']
+        self.exhaust_pile = state['exhaust_pile']
+        self.monsters = state['monsters']
 
     def step_one_turn(self):
         self.do_player_action()
@@ -54,6 +88,11 @@ class CombatSim:
         available = [c for c in self.hand if self.player.can_play(c)]
         card_to_play = available.choice()
 
+    def play_with_random_target(self, card):
+        if card.has_target:
+            target = self.monsters.choice()
+            self.play(card, target)
+
     def do_monster_actions(self):
         pass
 
@@ -64,9 +103,19 @@ class CombatSim:
         for m in self.monsters:
             m.on_end_turn()
 
-    def sim_combat(self):
-        while self.player.current_hp >= 0 and all(m.current_hp >= 0 for m in self.monsters):
+    def sim_combat(self, card, target):
+        self.play(card, target)
+        while self.player.current_hp >= 0 and any(m.current_hp >= 0 for m in self.monsters):
             self.step_one_turn()
+        if self.player.current_hp <= 0:
+            return 0
+        else:
+            return 1
+
+    def is_over(self):
+        if self.player.current_hp <= 0 or all(m.current_hp <= 0 for m in self.monsters):
+            return True
+        return False
 
     def begin_turn(self):
         self.draw(5)

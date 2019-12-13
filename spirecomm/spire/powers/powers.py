@@ -3,9 +3,6 @@ from spirecomm.ai.combatSim import CombatSim
 
 class SimPower:
 
-    effects = {"strength", "dexterity", "focus", "weak", "vulnerable", "frail", "poison", "artifact",
-               "intangible", "str_temp", "dex_temp", "foc_temp", "entangled"}
-
     @classmethod
     def apply(cls, key, target=CombatSim.player, intensity=-1, duration=-1):
         if target.powers["artifact"] > 0:

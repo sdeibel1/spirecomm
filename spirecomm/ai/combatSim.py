@@ -2,12 +2,10 @@ from random import random
 
 from spirecomm.spire.card import Card, CardType, CardRarity
 from spirecomm.spire.relic import Relic
-from spirecomm.spire.character import Character
-from spirecomm.spire.character import Monster
+from spirecomm.spire.character import Monster, Intent
 from spirecomm.spire.character import Player
 from spirecomm.spire.potion import Potion
-from spirecomm.spire import cards
-from spirecomm.spire.powers.powers import SimPower as p
+from spirecomm.spire.powers import SimPower as p
 
 
 class CombatSim:
@@ -22,6 +20,7 @@ class CombatSim:
         self.discard_pile = state['discard_pile']
         self.exhaust_pile = state['exhaust_pile']
         self.monsters = state['monsters']
+        self.turn = state['turn']
 
         # combat_state = game_state['combat_state']
         # self.player = Player.from_json(game_state)
@@ -64,7 +63,8 @@ class CombatSim:
                 'hand': self.hands,
                 'draw_pile': self.draw_pile,
                 'discard_pile': self.discard_pile,
-                'monsters': self.monsters}
+                'monsters': self.monsters,
+                'turn': self.turn}
 
     def change_state(self, state):
         self.player = state['player']
@@ -76,6 +76,7 @@ class CombatSim:
         self.discard_pile = state['discard_pile']
         self.exhaust_pile = state['exhaust_pile']
         self.monsters = state['monsters']
+        self.turn = state['turn']
 
     def step_one_turn(self):
         self.do_player_action()
@@ -94,7 +95,25 @@ class CombatSim:
             self.play(card, target)
 
     def do_monster_actions(self):
-        pass
+        for m in self.monsters:
+            if self.turn >= len(m.schedule):
+                self.do_monster_move(m.schedule[-1], m)
+            else:
+                self.do_monster_move(m.schedule[self.turn], m)
+
+    def do_monster_move(self, move, monster):
+        if move.type in {Intent.SLEEP, Intent.STUN, Intent.NONE}:
+            return
+        if move.type.is_attack():
+            self.damage(move.damage, source=monster, target=self.player)
+        if monster.name == "Shield Gremlin":
+            self.block(move.block, target=self.monsters.choice())
+        else:
+            self.block(move.block, target=monster)
+        if move.buff_name:
+            p.apply(move.buff_name, monster, move.intensity, move.duration)
+        if move.debuff_name:
+            p.apply(move.debuff_name,intensity=move.intensity, duration=move.duration)
 
     def end_player_turn(self):
         pass
@@ -144,7 +163,7 @@ class CombatSim:
             self.hand.append(self.draw_pile.pop())
             self.draw(n-1)
 
-    def damage(self, base, add, source=None):
+    def damage(self, base, add=0, source=None, target=None):
         """
         Takes in card information and deals damage, taking into account on-damage effects and upgrades.
         int base: base (unupgraded) damage of card
@@ -156,12 +175,14 @@ class CombatSim:
         # TODO: adjust damage for buffs/debuffs (strength, weakness, vuln, etc.)
         if source is None:
             source = self.player
+        if target is None:
+            target = self.target
         amt = base + self.upgrades * add + source.powers['strength']
         if source.powers['weakened']:
             amt *= .75
-        if self.target.powers['vulnerable']:
+        if target.powers['vulnerable']:
             amt *= 1.5
-        self.target.current_hp -= base + self.upgrades * add - self.target.block
+        target.current_hp -= base + self.upgrades * add - self.target.block
         # source.onReceiveDamage
         # target.onDealDamage (?)
 
@@ -176,9 +197,11 @@ class CombatSim:
                 amt *= 1.5
             self.target.current_hp -= amt + self.upgrades * add - self.target.block
 
-    def block(self, base, add):
-        amt = base + self.upgrades * add + self.player.powers['dexterity']
-        self.target.block += amt
+    def block(self, base, add=0, target=None):
+        if target is None:
+            target = self.target
+        amt = base + self.upgrades * add + target.powers['dexterity']
+        target.block += amt
 
     def discard(self, n=1, index=-1, card=None):
         """
@@ -205,16 +228,14 @@ class CombatSim:
                 self.hand.pop(random.randint(0, len(self.hand) - 1))
             self.discard_count += 1
 
-    def get_shiv(self, upgrades):
+    def get_shiv(self, upgrades=0):
         shiv = Card("Shiv", "Shiv", CardType.ATTACK, CardRarity.BASIC, upgrades=upgrades, is_playable=True, exhausts=True)
         self.hand.append(shiv)
-
 
     def poison(self, base, add):
         self.target.powers['poison'] += (base + self.upgrades * add)
 
     # CARDS
-
     def Strike_G(self):
         self.damage(6, 3)
 
@@ -238,16 +259,16 @@ class CombatSim:
         self.draw(2)
 
     def Bane(self):
-        self.damage(7,3)
+        self.damage(7, 3)
         if self.target.powers['poison'] > 0:
-            self.damage(7,3)
+            self.damage(7, 3)
 
     def Blade_Dance(self):
         for _ in range(2):
             self.get_shiv()
 
     def Cloak_And_Dagger(self):
-        self.block(6,0)
+        self.block(6, 0)
         for _ in range(self.upgrades + 1):
             self.get_shiv()
 
@@ -256,23 +277,23 @@ class CombatSim:
             self.damage_all(4, 2)
 
     def Dagger_Throw(self):
-        self.damage(9,3)
+        self.damage(9, 3)
         self.draw(1)
         self.discard(1)
 
     def Deadly_Poison(self):
-        self.poison(5,2)
+        self.poison(5, 2)
 
     def Deflect(self):
-        self.block(4,3)
+        self.block(4, 3)
 
     def Dodge_And_Roll(self):
-        self.block(4,2)
+        self.block(4, 2)
         # TODO: dodge_and_roll power
         p.apply("dodge_and_roll", self.target, 4+2*self.upgrades)
 
     def Flying_Knee(self):
-        self.damage(8,3)
+        self.damage(8, 3)
         p.apply("next_energy", self.target, duration=1, intensity=1)
 
     def Outmaneuver(self):
@@ -325,7 +346,7 @@ class CombatSim:
 
     def Bouncing_Flask(self):
         for _ in range(3 + self.upgrades):
-            self.poison(3,0)
+            self.poison(3, 0)
 
     def Calculated_Gamble(self):
         n = len(self.hand)

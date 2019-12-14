@@ -1,5 +1,6 @@
 from enum import Enum
 
+from spirecomm.spire.move_info import MoveInfo
 from spirecomm.spire.power import Power
 
 
@@ -104,7 +105,8 @@ class Monster(Character):
         self.move_base_damage = move_base_damage
         self.move_adjusted_damage = move_adjusted_damage
         self.move_hits = move_hits
-        self.monster_index = 0
+
+        self.move_info = MoveInfo(self)
 
     @classmethod
     def from_json(cls, json_object):

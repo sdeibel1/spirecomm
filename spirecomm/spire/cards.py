@@ -1,7 +1,6 @@
 from random import random
 
-import spirecomm.spire.powers.powers as p
-import spirecomm.spire.card
+import spirecomm.spire.powers as p
 from spirecomm.ai import combatSim
 
 

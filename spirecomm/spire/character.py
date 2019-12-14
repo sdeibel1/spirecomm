@@ -1,31 +1,8 @@
 from enum import Enum
 from random import random
 
-from spirecomm.spire.move_info import MoveInfo, Move
+from spirecomm.spire.move_info import MoveInfo, Move, Intent
 from spirecomm.spire.power import Power
-
-
-class Intent(Enum):
-    ATTACK = 1
-    ATTACK_BUFF = 2
-    ATTACK_DEBUFF = 3
-    ATTACK_DEFEND = 4
-    BUFF = 5
-    DEBUFF = 6
-    STRONG_DEBUFF = 7
-    DEBUG = 8
-    DEFEND = 9
-    DEFEND_DEBUFF = 10
-    DEFEND_BUFF = 11
-    ESCAPE = 12
-    MAGIC = 13
-    NONE = 14
-    SLEEP = 15
-    STUN = 16
-    UNKNOWN = 17
-
-    def is_attack(self):
-        return self in [Intent.ATTACK, Intent.ATTACK_BUFF, Intent.ATTACK_DEBUFF, Intent.ATTACK_DEFEND]
 
 
 class PlayerClass(Enum):
@@ -86,10 +63,12 @@ class Player(Character):
 
     @classmethod
     def from_json(cls, json_object):
-        player = cls(json_object["max_hp"], json_object["current_hp"], json_object["block"], json_object["energy"],
+        print(json_object.keys())
+        player_object = json_object["combat_state"]["player"]
+        player = cls(player_object["max_hp"], player_object["current_hp"], player_object["block"], player_object["energy"],
                      json_object["combat_state"]["hand"])
-        player.powers = [Power.from_json(json_power) for json_power in json_object["powers"]]
-        player.orbs = [Orb.from_json(orb) for orb in json_object["orbs"]]
+        # player.powers = [Power.from_json(json_power) for json_power in json_object["powers"]]
+        # player.orbs = [Orb.from_json(orb) for orb in json_object["orbs"]]
         return player
 
     def can_play(self, card):
@@ -135,13 +114,24 @@ class Monster(Character):
         move_adjusted_damage = json_object.get("move_adjusted_damage", 0)
         move_hits = json_object.get("move_hits", 0)
         monster = cls(name, monster_id, max_hp, current_hp, block, intent, half_dead, is_gone, move_id, last_move_id, second_last_move_id, move_base_damage, move_adjusted_damage, move_hits)
-        monster.powers = [Power.from_json(json_power) for json_power in json_object["powers"]]
+        # monster.powers = [Power.from_json(json_power) for json_power in json_object["powers"]]
         return monster
 
     def get_move_from_possible(self, possible_moves):
-        if isinstance(possible_moves[0], Move):
+        if not isinstance(possible_moves[0], str):
             probs = [x.prob for x in possible_moves[0]]
             return random.choices(possible_moves[0], probs)
+
+    def split(self):
+        if self.name == "Acid Slime (L)":
+            name = "Acid Slime (M)"
+            id = "AcidSlime_M"
+        elif self.name == "Spike Slime (L)":
+            name = "Spike Slime (L)"
+            id = "SpikeSlime_L"
+        m1 = Monster(name, id, self.max_hp//2, self.current_hp//2, 0, Intent.NONE, self.half_dead, False)
+        m2 = Monster(name, id, self.max_hp//2, self.current_hp//2, 0, Intent.NONE, self.half_dead, False)
+        return [m1, m2]
 
     def __eq__(self, other):
         if self.name == other.name and self.current_hp == other.current_hp and self.max_hp == other.max_hp and self.block == other.block:

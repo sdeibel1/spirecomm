@@ -1,6 +1,28 @@
+from enum import Enum
 from random import random
 
-from spirecomm.spire.character import Intent
+
+class Intent(Enum):
+    ATTACK = 1
+    ATTACK_BUFF = 2
+    ATTACK_DEBUFF = 3
+    ATTACK_DEFEND = 4
+    BUFF = 5
+    DEBUFF = 6
+    STRONG_DEBUFF = 7
+    DEBUG = 8
+    DEFEND = 9
+    DEFEND_DEBUFF = 10
+    DEFEND_BUFF = 11
+    ESCAPE = 12
+    MAGIC = 13
+    NONE = 14
+    SLEEP = 15
+    STUN = 16
+    UNKNOWN = 17
+
+    def is_attack(self):
+        return self in [Intent.ATTACK, Intent.ATTACK_BUFF, Intent.ATTACK_DEBUFF, Intent.ATTACK_DEFEND]
 
 
 class MoveInfo:

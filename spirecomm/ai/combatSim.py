@@ -1,5 +1,6 @@
 from random import random
 
+from spirecomm.ai.mcts import MCTS
 from spirecomm.spire.card import Card, CardType, CardRarity
 from spirecomm.spire.move_info import Move
 from spirecomm.spire.relic import Relic
@@ -80,15 +81,30 @@ class CombatSim:
         self.turn = state['turn']
 
     def step_one_turn(self):
+        print(self.get_state())
+        self.on_start_turn()
         self.do_player_action()
         self.end_player_turn()
         self.do_monster_actions()
         self.end_monster_turn()
         self.begin_turn()
 
+    def on_start_turn(self):
+        self.draw(5)
+        # for r in self.relics:
+        #     r.on_start_turn()  # TODO: implement
+        self.player.on_start_turn()
+        for m in self.monsters:
+            m.on_start_turn()
+
     def do_player_action(self):
-        available = [c for c in self.hand if self.player.can_play(c)]
-        card_to_play = available.choice()
+        available_cards = [c for c in self.hand if self.player.can_play(c)]
+        card_to_play = available_cards.choice()
+        target = self.monsters.choice() if card_to_play.has_target else None
+        self.play(card_to_play, self.player)
+        # mcts = MCTS(self, self.get_state())
+        # card, target = mcts.get_action()
+        # self.play(card, target)
 
     def play_with_random_target(self, card):
         if card.has_target:
@@ -109,6 +125,11 @@ class CombatSim:
     def do_monster_move(self, move, monster):
         if move.type in {Intent.SLEEP, Intent.STUN, Intent.NONE}:
             return
+        if move.type is Intent.UNKNOWN:
+            after_split = monster.split()
+            self.monsters.pop(monster)
+            self.monsters.append(after_split)
+            return
         if move.type.is_attack():
             self.damage(move.damage, source=monster, target=self.player)
         if monster.name == "Shield Gremlin":
@@ -121,7 +142,7 @@ class CombatSim:
             p.apply(move.debuff_name,intensity=move.intensity, duration=move.duration)
 
     def end_player_turn(self):
-        pass
+        self.player.on_end_turn()
 
     def end_monster_turn(self):
         for m in self.monsters:
@@ -141,20 +162,14 @@ class CombatSim:
             return True
         return False
 
-    def begin_turn(self):
-        self.draw(5)
-        for r in self.relics:
-            r.on_start_turn() #TODO: implement
-        self.player.on_start_turn()
-        for m in self.monsters:
-            m.on_start_turn()
-
     def play(self, card, target):
         self.target = target
         self.cost = card.cost
         self.upgrades = card.upgrades
         card_method = card.card_id.replace(" ", "_")
         getattr(CombatSim, card_method)()
+
+        self.player.on_card_play()
 
     def draw(self, n):
         if n == 0:
@@ -168,7 +183,7 @@ class CombatSim:
             self.hand.append(self.draw_pile.pop())
             self.draw(n-1)
 
-    def damage(self, base, add=0, source=None, target=None):
+    def damage(self, base, add=0, is_attack=True, source=None, target=None):
         """
         Takes in card information and deals damage, taking into account on-damage effects and upgrades.
         int base: base (unupgraded) damage of card
@@ -187,7 +202,11 @@ class CombatSim:
             amt *= .75
         if target.powers['vulnerable']:
             amt *= 1.5
-        target.current_hp -= base + self.upgrades * add - self.target.block
+        after_block = amt - target.block
+        target.block = max(target.block - amt, 0)
+        target.current_hp -= after_block
+        if is_attack is True:
+            target.on_receive_damage()
         # source.onReceiveDamage
         # target.onDealDamage (?)
 
@@ -239,8 +258,10 @@ class CombatSim:
         shiv = Card("Shiv", "Shiv", CardType.ATTACK, CardRarity.BASIC, upgrades=upgrades, is_playable=True, exhausts=True)
         self.hand.append(shiv)
 
-    def poison(self, base, add):
-        self.target.powers['poison'] += (base + self.upgrades * add)
+    def poison(self, base, add, target=None):
+        if target is None:
+            target = self.target
+        target.powers['poison'] += (base + self.upgrades * add)
 
     # CARDS
     def Strike_G(self):
@@ -251,7 +272,7 @@ class CombatSim:
 
     def Neutralize(self):
         self.damage(4, 2)
-        p.apply("weak", self.target, duration=1+self.upgrades)
+        p.apply("weak", target=self.target, duration=1+self.upgrades)
 
     def Survivor(self):
         self.block(8, 3)
@@ -296,19 +317,18 @@ class CombatSim:
 
     def Dodge_And_Roll(self):
         self.block(4, 2)
-        # TODO: dodge_and_roll power
-        p.apply("dodge_and_roll", self.target, 4+2*self.upgrades)
+        p.apply("dodge_and_roll", duration=1, intensity=4+2*self.upgrades)
 
     def Flying_Knee(self):
         self.damage(8, 3)
-        p.apply("next_energy", self.target, duration=1, intensity=1)
+        p.apply("next_energy", duration=1, intensity=1)
 
     def Outmaneuver(self):
         # TODO: next_energy power
         p.apply("next_energy", duration=1, intensity=2)
 
     def Piercing_Wail(self):
-        # TODO: strength power
+        # TODO: apply all???
         p.apply_all("strength_temp", -(6+2*self.upgrades))
 
     def Poisoned_Stab(self):
@@ -478,7 +498,9 @@ class CombatSim:
         pass
 
     def Bullet_Time(self):
+        # TODO
         p.apply("bullet_time")
+        # TODO
         p.apply("no_draw", duration=1)
 
     def Burst(self):

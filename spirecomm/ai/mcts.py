@@ -1,6 +1,6 @@
 import math
 import operator
-from spirecomm.ai.combatSim import CombatSim
+# from spirecomm.ai.combatSim import CombatSim
 
 
 def backpropagate(node, result):
@@ -12,8 +12,8 @@ def backpropagate(node, result):
 
 
 class MCTS:
-    def __init__(self, combat_state):
-        self.sim = CombatSim(combat_state)
+    def __init__(self, sim, combat_state):
+        self.sim = sim
         root = Tree(combat_state)
 
     def get_action(self, n=100):

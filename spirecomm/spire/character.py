@@ -1,6 +1,7 @@
 from enum import Enum
+from random import random
 
-from spirecomm.spire.move_info import MoveInfo
+from spirecomm.spire.move_info import MoveInfo, Move
 from spirecomm.spire.power import Power
 
 
@@ -59,7 +60,7 @@ class Character:
         if self.current_hp is None:
             self.current_hp = self.max_hp
         self.block = block
-        self.powers = []
+        self.powers = {}
 
     def on_start_turn(self):
         for p in self.powers:
@@ -68,6 +69,11 @@ class Character:
     def on_end_turn(self):
         for p in self.powers:
             p.on_end_turn()
+
+    def affected_by(self, key):
+        if self.powers[key] and not (self.powers[key]["intensity"] <= 0 and self.powers[key]["duration"] <= 0):
+            return True
+        return False
 
 
 class Player(Character):
@@ -108,6 +114,10 @@ class Monster(Character):
 
         self.move_info = MoveInfo(self)
 
+        if "Louse" in name and max_hp == current_hp:
+            block_amt = random.randint(3,7)
+            self.powers["curl up"]["intensity"] = block_amt
+
     @classmethod
     def from_json(cls, json_object):
         name = json_object["name"]
@@ -127,6 +137,11 @@ class Monster(Character):
         monster = cls(name, monster_id, max_hp, current_hp, block, intent, half_dead, is_gone, move_id, last_move_id, second_last_move_id, move_base_damage, move_adjusted_damage, move_hits)
         monster.powers = [Power.from_json(json_power) for json_power in json_object["powers"]]
         return monster
+
+    def get_move_from_possible(self, possible_moves):
+        if isinstance(possible_moves[0], Move):
+            probs = [x.prob for x in possible_moves[0]]
+            return random.choices(possible_moves[0], probs)
 
     def __eq__(self, other):
         if self.name == other.name and self.current_hp == other.current_hp and self.max_hp == other.max_hp and self.block == other.block:

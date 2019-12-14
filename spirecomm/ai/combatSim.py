@@ -1,6 +1,7 @@
 from random import random
 
 from spirecomm.spire.card import Card, CardType, CardRarity
+from spirecomm.spire.move_info import Move
 from spirecomm.spire.relic import Relic
 from spirecomm.spire.character import Monster, Intent
 from spirecomm.spire.character import Player
@@ -95,8 +96,12 @@ class CombatSim:
             self.play(card, target)
 
     def do_monster_actions(self):
+        hit_limit = True
         for m in self.monsters:
             if self.turn >= len(m.schedule):
+                possible_moves = m.schedule[-1]
+                if isinstance(possible_moves[0], Move):
+                    move = random.choices(possible_moves[0], weights=[x.prob for x in possible_moves[0]])
                 self.do_monster_move(m.schedule[-1], m)
             else:
                 self.do_monster_move(m.schedule[self.turn], m)
@@ -178,7 +183,7 @@ class CombatSim:
         if target is None:
             target = self.target
         amt = base + self.upgrades * add + source.powers['strength']
-        if source.powers['weakened']:
+        if source.powers['weak']:
             amt *= .75
         if target.powers['vulnerable']:
             amt *= 1.5
@@ -189,7 +194,7 @@ class CombatSim:
     def damage_all(self, base, add):
         source = self.player
         amt = base + source.powers['strength']
-        if source.powers['weakened']:
+        if source.powers['weak']:
             amt *= .75
         for t in self.target:
             # TODO: adjust damage for buffs/debuffs (strength, weakness, vuln, etc.)
@@ -201,6 +206,8 @@ class CombatSim:
         if target is None:
             target = self.target
         amt = base + self.upgrades * add + target.powers['dexterity']
+        if target.affected_by("frail"):
+            amt *= .75
         target.block += amt
 
     def discard(self, n=1, index=-1, card=None):

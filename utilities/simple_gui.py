@@ -2,7 +2,7 @@ import os
 import collections
 import spirecomm.communication.coordinator as coord
 
-os.environ["KIVY_NO_CONSOLELOG"] = "1"
+# os.environ["KIVY_NO_CONSOLELOG"] = "0"
 
 from kivy.app import App
 from kivy.uix.textinput import TextInput

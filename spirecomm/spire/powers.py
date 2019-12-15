@@ -97,7 +97,7 @@ class SimPower:
         if key == "Ritual":
             source.powers["strength"] += power["intensity"]
         
-        if power["duration"] > 0:
+        if type(power) is dict and power["duration"] > 0:
             power["duration"] -= 1
             if power["duration"] == 0:
                 source.powers.pop(key)

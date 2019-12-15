@@ -1,4 +1,4 @@
-from random import random
+import random
 
 from spirecomm.ai.mcts import MCTS
 from spirecomm.spire.card import Card, CardType, CardRarity
@@ -54,7 +54,8 @@ class CombatSim:
                  'draw_pile': [Card.from_json(c) for c in combat_state['draw_pile']],
                  'discard_pile': [],
                  'exhaust_pile': [],
-                 'monsters': [Monster.from_json(m) for m in combat_state['monsters']]}
+                 'monsters': [Monster.from_json(m) for m in combat_state['monsters']],
+                 'turn': 0}
         return CombatSim(state)
 
     def get_state(self):
@@ -62,7 +63,7 @@ class CombatSim:
                 'deck': self.deck,
                 'relics': self.relics,
                 'potions': self.potions,
-                'hand': self.hands,
+                'hand': self.hand,
                 'draw_pile': self.draw_pile,
                 'discard_pile': self.discard_pile,
                 'monsters': self.monsters,
@@ -87,7 +88,7 @@ class CombatSim:
         self.end_player_turn()
         self.do_monster_actions()
         self.end_monster_turn()
-        self.begin_turn()
+        self.turn += 1
 
     def on_start_turn(self):
         self.draw(5)
@@ -99,8 +100,8 @@ class CombatSim:
 
     def do_player_action(self):
         available_cards = [c for c in self.hand if self.player.can_play(c)]
-        card_to_play = available_cards.choice()
-        target = self.monsters.choice() if card_to_play.has_target else None
+        card_to_play = random.choice(available_cards)
+        target = random.choice(self.monsters) if card_to_play.has_target else None
         self.play(card_to_play, self.player)
         # mcts = MCTS(self, self.get_state())
         # card, target = mcts.get_action()
@@ -114,23 +115,23 @@ class CombatSim:
     def do_monster_actions(self):
         hit_limit = True
         for m in self.monsters:
-            if self.turn >= len(m.schedule):
-                possible_moves = m.schedule[-1]
+            if self.turn >= len(m.move_info.schedule):
+                possible_moves = m.move_info.schedule[-1]
                 if isinstance(possible_moves[0], Move):
                     move = random.choices(possible_moves[0], weights=[x.prob for x in possible_moves[0]])
-                self.do_monster_move(m.schedule[-1], m)
+                self.do_monster_move(m.move_info.schedule[-1], m)
             else:
-                self.do_monster_move(m.schedule[self.turn], m)
+                self.do_monster_move(m.move_info.schedule[self.turn], m)
 
     def do_monster_move(self, move, monster):
-        if move.type in {Intent.SLEEP, Intent.STUN, Intent.NONE}:
+        if move.intent in {Intent.SLEEP, Intent.STUN, Intent.NONE}:
             return
-        if move.type is Intent.UNKNOWN:
+        if move.intent is Intent.UNKNOWN:
             after_split = monster.split()
             self.monsters.pop(monster)
             self.monsters.append(after_split)
             return
-        if move.type.is_attack():
+        if move.intent.is_attack():
             self.damage(move.damage, source=monster, target=self.player)
         if monster.name == "Shield Gremlin":
             self.block(move.block, target=self.monsters.choice())
@@ -167,17 +168,16 @@ class CombatSim:
         self.cost = card.cost
         self.upgrades = card.upgrades
         card_method = card.card_id.replace(" ", "_")
-        getattr(CombatSim, card_method)()
-
+        getattr(CombatSim, card_method)(self)
         self.player.on_card_play()
 
     def draw(self, n):
         if n == 0:
             pass
-        elif self.hand.length == 10:
+        elif len(self.hand) == 10:
             self.draw_pile.pop()
         else:
-            if self.draw_pile.length < n:
+            if len(self.draw_pile) < n:
                 self.draw_pile = self.draw_pile.append(self.discard_pile)
                 random.shuffle(self.draw_pile)
             self.hand.append(self.draw_pile.pop())
@@ -198,15 +198,18 @@ class CombatSim:
         if target is None:
             target = self.target
         amt = base + self.upgrades * add + source.powers['strength']
-        if source.powers['weak']:
+        if "weak" in source.powers:
             amt *= .75
-        if target.powers['vulnerable']:
+        if "vulnerable" in target.powers:
             amt *= 1.5
         after_block = amt - target.block
         target.block = max(target.block - amt, 0)
         target.current_hp -= after_block
         if is_attack is True:
-            target.on_receive_damage()
+            for power in source.powers:
+                p.on_attack_damage(power, source, source, target)
+            for power in target.powers:
+                p.on_attack_damage(power, target, source, target)
         # source.onReceiveDamage
         # target.onDealDamage (?)
 
@@ -223,7 +226,7 @@ class CombatSim:
 
     def block(self, base, add=0, target=None):
         if target is None:
-            target = self.target
+            target = self.player
         amt = base + self.upgrades * add + target.powers['dexterity']
         if target.affected_by("frail"):
             amt *= .75

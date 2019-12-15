@@ -2,7 +2,7 @@ from enum import Enum
 from random import random
 
 from spirecomm.spire.move_info import MoveInfo, Move, Intent
-from spirecomm.spire.power import Power
+from spirecomm.spire.powers import SimPower
 
 
 class PlayerClass(Enum):
@@ -37,18 +37,24 @@ class Character:
         if self.current_hp is None:
             self.current_hp = self.max_hp
         self.block = block
-        self.powers = {}
+        self.powers = {"strength": 0, "dexterity": 0, "focus": 0}
 
     def on_start_turn(self):
         for p in self.powers:
-            p.on_start_turn()
+            SimPower.on_start_turn(p, self)
 
     def on_end_turn(self):
         for p in self.powers:
-            p.on_end_turn()
+            SimPower.end_of_turn(p, self)
+
+    def on_card_play(self):
+        for p in self.powers:
+            SimPower.on_card_play(p, self)
+
+
 
     def affected_by(self, key):
-        if self.powers[key] and not (self.powers[key]["intensity"] <= 0 and self.powers[key]["duration"] <= 0):
+        if key in self.powers and not (self.powers[key]["intensity"] <= 0 and self.powers[key]["duration"] <= 0):
             return True
         return False
 
@@ -65,8 +71,9 @@ class Player(Character):
     def from_json(cls, json_object):
         print(json_object.keys())
         player_object = json_object["combat_state"]["player"]
-        player = cls(player_object["max_hp"], player_object["current_hp"], player_object["block"], player_object["energy"],
-                     json_object["combat_state"]["hand"])
+        print(player_object)
+        player = cls(player_object["max_hp"], json_object["combat_state"]["hand"], player_object["current_hp"],
+                     player_object["block"], player_object["energy"])
         # player.powers = [Power.from_json(json_power) for json_power in json_object["powers"]]
         # player.orbs = [Orb.from_json(orb) for orb in json_object["orbs"]]
         return player

@@ -1,13 +1,12 @@
+import copy
 import random
 
-from spirecomm.ai.mcts import MCTS
-from spirecomm.spire.card import Card, CardType, CardRarity
-from spirecomm.spire.move_info import Move
-from spirecomm.spire.relic import Relic
-from spirecomm.spire.character import Monster, Intent
-from spirecomm.spire.character import Player
-from spirecomm.spire.potion import Potion
-from spirecomm.spire.powers import SimPower as p
+import spirecomm.spire.card
+import spirecomm.spire.move_info
+import spirecomm.spire.relic
+import spirecomm.spire.character
+import spirecomm.spire.potion
+import spirecomm.spire.powers
 
 
 class CombatSim:
@@ -46,19 +45,21 @@ class CombatSim:
     @classmethod
     def from_json(cls, game_state):
         combat_state = game_state['combat_state']
-        state = {'player': Player.from_json(game_state),
-                 'deck': [Card.from_json(c) for c in game_state['deck']],
-                 'relics': [Relic.from_json(r) for r in game_state['relics']],
-                 'potions': [Potion.from_json(p) for p in game_state['potions']],
-                 'hand': [Card.from_json(c) for c in combat_state['hand']],
-                 'draw_pile': [Card.from_json(c) for c in combat_state['draw_pile']],
+        state = {'player': spirecomm.spire.character.Player.from_json(game_state),
+                 'deck': [spirecomm.spire.card.Card.from_json(c) for c in game_state['deck']],
+                 'relics': [spirecomm.spire.relic.Relic.from_json(r) for r in game_state['relics']],
+                 'potions': [spirecomm.spire.potion.Potion.from_json(p) for p in game_state['potions']],
+                 'hand': [spirecomm.spire.card.Card.from_json(c) for c in combat_state['hand']],
+                 'draw_pile': [spirecomm.spire.card.Card.from_json(c) for c in combat_state['draw_pile']],
                  'discard_pile': [],
                  'exhaust_pile': [],
-                 'monsters': [Monster.from_json(m) for m in combat_state['monsters']],
+                 'monsters': [spirecomm.spire.character.Monster.from_json(m) for m in combat_state['monsters']],
                  'turn': 0}
-        return CombatSim(state)
+        sim = CombatSim(state)
+        return sim
 
     def get_state(self):
+        # player = Player(self.player.max_hp, self.hand[:], self.player.current_hp, self.player.block, self.player.energy)
         return {'player': self.player,
                 'deck': self.deck,
                 'relics': self.relics,
@@ -66,23 +67,24 @@ class CombatSim:
                 'hand': self.hand,
                 'draw_pile': self.draw_pile,
                 'discard_pile': self.discard_pile,
+                'exhaust_pile': self.exhaust_pile,
                 'monsters': self.monsters,
                 'turn': self.turn}
 
     def change_state(self, state):
-        self.player = state['player']
-        self.deck = state['deck']
-        self.relics = state['relics']
-        self.potions = state['potions']
-        self.hand = state['hand']
-        self.draw_pile = state['draw_pile']
-        self.discard_pile = state['discard_pile']
-        self.exhaust_pile = state['exhaust_pile']
-        self.monsters = state['monsters']
+        self.player = copy.deepcopy(state['player'])
+        self.deck = state['deck'][:]
+        self.relics = state['relics'][:]
+        self.potions = state['potions'][:]
+        self.hand = state['hand'][:]
+        self.draw_pile = state['draw_pile'][:]
+        self.discard_pile = state['discard_pile'][:]
+        self.exhaust_pile = state['exhaust_pile'][:]
+        self.monsters = [copy.deepcopy(m) for m in state['monsters']]
         self.turn = state['turn']
 
+
     def step_one_turn(self):
-        print(self.get_state())
         self.on_start_turn()
         self.do_player_action()
         self.end_player_turn()
@@ -102,31 +104,35 @@ class CombatSim:
         available_cards = [c for c in self.hand if self.player.can_play(c)]
         card_to_play = random.choice(available_cards)
         target = random.choice(self.monsters) if card_to_play.has_target else None
-        self.play(card_to_play, self.player)
+        # print("card: {0}, target: {1}, player block: {2}".format(card_to_play.name, target, self.player.block))
+        self.play(card_to_play, target)
         # mcts = MCTS(self, self.get_state())
         # card, target = mcts.get_action()
         # self.play(card, target)
 
-    def play_with_random_target(self, card):
-        if card.has_target:
-            target = self.monsters.choice()
-            self.play(card, target)
-
     def do_monster_actions(self):
-        hit_limit = True
         for m in self.monsters:
             if self.turn >= len(m.move_info.schedule):
-                possible_moves = m.move_info.schedule[-1]
-                if isinstance(possible_moves[0], Move):
-                    move = random.choices(possible_moves[0], weights=[x.prob for x in possible_moves[0]])
-                self.do_monster_move(m.move_info.schedule[-1], m)
+                possible_moves = m.move_info.schedule[-1]  # tuple
             else:
-                self.do_monster_move(m.move_info.schedule[self.turn], m)
+                possible_moves = m.move_info.schedule[self.turn]  # tuple
+
+            if isinstance(possible_moves[0], spirecomm.spire.move_info.Move):
+                # random selection
+                move = random.choices(possible_moves, weights=[x.prob for x in possible_moves])[0]
+            elif possible_moves[0] == "alternate":
+                # possible_moves[0] is a tuple with the two moves to alternate
+                if possible_moves[0][0].name == m.get_move_name_by_id(m.last_move_id):
+                    move = possible_moves[0][1]
+                else:
+                    move = possible_moves[0][0]
+            # print("move: {0}, move damage: {1}, monster block: {2}".format(move.name, move.damage, m.block))
+            self.do_monster_move(move, m)
 
     def do_monster_move(self, move, monster):
-        if move.intent in {Intent.SLEEP, Intent.STUN, Intent.NONE}:
+        if move.intent in {spirecomm.spire.move_info.Intent.SLEEP, spirecomm.spire.move_info.Intent.STUN, spirecomm.spire.move_info.Intent.NONE}:
             return
-        if move.intent is Intent.UNKNOWN:
+        if move.intent is spirecomm.spire.move_info.Intent.UNKNOWN:
             after_split = monster.split()
             self.monsters.pop(monster)
             self.monsters.append(after_split)
@@ -138,25 +144,30 @@ class CombatSim:
         else:
             self.block(move.block, target=monster)
         if move.buff_name:
-            p.apply(move.buff_name, monster, move.intensity, move.duration)
+            spirecomm.spire.powers.apply(move.buff_name, monster, move.intensity, move.duration)
         if move.debuff_name:
-            p.apply(move.debuff_name,intensity=move.intensity, duration=move.duration)
+            spirecomm.spire.powers.apply(move.debuff_name,intensity=move.intensity, duration=move.duration)
 
     def end_player_turn(self):
         self.player.on_end_turn()
+        for m in self.monsters:
+            m.block = 0
 
     def end_monster_turn(self):
         for m in self.monsters:
             m.on_end_turn()
+        self.player.block = 0
 
     def sim_combat(self, card, target):
+        # print("AAAAAAAAAAAAAAAAAAH", card.name, target)
         self.play(card, target)
         while self.player.current_hp >= 0 and any(m.current_hp >= 0 for m in self.monsters):
             self.step_one_turn()
-        if self.player.current_hp <= 0:
-            return 0
-        else:
-            return 1
+            # print("player hp:", self.player.current_hp)
+            # for i, m in enumerate(self.monsters):
+                # print("monster {0} hp, {1}".format(i, m.current_hp))
+        return 0 if self.player.current_hp <= 0 else 1
+
 
     def is_over(self):
         if self.player.current_hp <= 0 or all(m.current_hp <= 0 for m in self.monsters):
@@ -173,15 +184,19 @@ class CombatSim:
 
     def draw(self, n):
         if n == 0:
-            pass
-        elif len(self.hand) == 10:
-            self.draw_pile.pop()
+            return
+        if len(self.draw_pile) == 0:
+            if len(self.discard_pile) == 0:
+                return
+            self.draw_pile.extend(self.discard_pile)
+            random.shuffle(self.draw_pile)
+            self.discard_pile.clear()
+
+        if len(self.hand) == 10:
+            self.discard_pile.append(self.draw_pile.pop())
         else:
-            if len(self.draw_pile) < n:
-                self.draw_pile = self.draw_pile.append(self.discard_pile)
-                random.shuffle(self.draw_pile)
             self.hand.append(self.draw_pile.pop())
-            self.draw(n-1)
+        self.draw(n-1)
 
     def damage(self, base, add=0, is_attack=True, source=None, target=None):
         """
@@ -204,12 +219,12 @@ class CombatSim:
             amt *= 1.5
         after_block = amt - target.block
         target.block = max(target.block - amt, 0)
-        target.current_hp -= after_block
+        target.current_hp -= max(after_block, 0)
         if is_attack is True:
             for power in source.powers:
-                p.on_attack_damage(power, source, source, target)
+                spirecomm.spire.powers.on_attack_damage(power, source, source, target)
             for power in target.powers:
-                p.on_attack_damage(power, target, source, target)
+                spirecomm.spire.powers.on_attack_damage(power, target, source, target)
         # source.onReceiveDamage
         # target.onDealDamage (?)
 
@@ -258,7 +273,8 @@ class CombatSim:
             self.discard_count += 1
 
     def get_shiv(self, upgrades=0):
-        shiv = Card("Shiv", "Shiv", CardType.ATTACK, CardRarity.BASIC, upgrades=upgrades, is_playable=True, exhausts=True)
+        shiv = spirecomm.spire.card.Card("Shiv", "Shiv", spirecomm.spire.card.CardType.ATTACK, 
+                                         spirecomm.spire.card.CardRarity.BASIC, upgrades=upgrades, is_playable=True, exhausts=True)
         self.hand.append(shiv)
 
     def poison(self, base, add, target=None):
@@ -275,7 +291,7 @@ class CombatSim:
 
     def Neutralize(self):
         self.damage(4, 2)
-        p.apply("weak", target=self.target, duration=1+self.upgrades)
+        spirecomm.spire.powers.apply("weak", target=self.target, duration=1+self.upgrades)
 
     def Survivor(self):
         self.block(8, 3)
@@ -320,19 +336,19 @@ class CombatSim:
 
     def Dodge_And_Roll(self):
         self.block(4, 2)
-        p.apply("dodge_and_roll", duration=1, intensity=4+2*self.upgrades)
+        spirecomm.spire.powers.apply("dodge_and_roll", duration=1, intensity=4+2*self.upgrades)
 
     def Flying_Knee(self):
         self.damage(8, 3)
-        p.apply("next_energy", duration=1, intensity=1)
+        spirecomm.spire.powers.apply("next_energy", duration=1, intensity=1)
 
     def Outmaneuver(self):
         # TODO: next_energy power
-        p.apply("next_energy", duration=1, intensity=2)
+        spirecomm.spire.powers.apply("next_energy", duration=1, intensity=2)
 
     def Piercing_Wail(self):
         # TODO: apply all???
-        p.apply_all("strength_temp", -(6+2*self.upgrades))
+        spirecomm.spire.powers.apply_all("strength_temp", -(6+2*self.upgrades))
 
     def Poisoned_Stab(self):
         self.damage(6, 2)
@@ -356,11 +372,11 @@ class CombatSim:
 
     def Sucker_Punch(self):
         self.damage(7, 2)
-        p.apply("weak", self.target, duration=1+self.upgrades)
+        spirecomm.spire.powers.apply("weak", self.target, duration=1+self.upgrades)
 
     def Accuracy(self):
         # TODO: accuracy power
-        p.apply("accuracy", self.target, intensity=3+2*self.upgrades)
+        spirecomm.spire.powers.apply("accuracy", self.target, intensity=3+2*self.upgrades)
 
     def All_Out_Attack(self):
         self.damage_all(10, 4)
@@ -372,7 +388,7 @@ class CombatSim:
     def Blur(self):
         self.block(5,3)
         # TODO: blur power
-        p.apply("blur", self.target, duration=1)
+        spirecomm.spire.powers.apply("blur", self.target, duration=1)
 
     def Bouncing_Flask(self):
         for _ in range(3 + self.upgrades):
@@ -384,14 +400,14 @@ class CombatSim:
         self.draw(n)
 
     def Caltrops(self):
-        p.apply("thorns", intensity=+self.upgrades*2)
+        spirecomm.spire.powers.apply("thorns", intensity=+self.upgrades*2)
 
     def Catalyst(self):
         self.poison(self.target.powers['poison'], self.target.powers['poison'])
 
     def Choke(self):
         self.damage(12, 0)
-        p.apply("choke", intensity=3+self.upgrades*2, duration=1)
+        spirecomm.spire.powers.apply("choke", intensity=3+self.upgrades*2, duration=1)
 
     def Concentrate(self):
         self.discard(3)
@@ -401,7 +417,7 @@ class CombatSim:
         for m in self.monsters:
             self.target = m
             self.poison(4, 3)
-            p.apply("weak", self.target, duration=2)
+            spirecomm.spire.powers.apply("weak", self.target, duration=2)
 
     def Dash(self):
         self.block(10, 3)
@@ -417,7 +433,7 @@ class CombatSim:
 
     def Escape_Plan(self):
         self.draw(1)
-        if (self.hand[len(self.hand) -1]).card_type == CardType.SKILL:
+        if (self.hand[len(self.hand) -1]).card_type == spirecomm.spire.card.CardType.SKILL:
             self.block(3, 2)
 
     def Eviscerate(self):
@@ -434,7 +450,7 @@ class CombatSim:
             self.damage(6, 2)
 
     def Footwork(self):
-        p.apply("dexterity", self.player, intensity=2+self.upgrades)
+        spirecomm.spire.powers.apply("dexterity", self.player, intensity=2+self.upgrades)
 
     def Heel_Hook(self):
         self.damage(5, 3)
@@ -443,10 +459,10 @@ class CombatSim:
             self.player.energy += 1
 
     def Infinite_Blades(self):
-        p.apply("infinite_blades", self.player, intensity=1)
+        spirecomm.spire.powers.apply("infinite_blades", self.player, intensity=1)
 
     def Leg_Sweep(self):
-        p.apply("weak", self.target, duration=2+self.upgrades)
+        spirecomm.spire.powers.apply("weak", self.target, duration=2+self.upgrades)
         self.block(11, 3)
 
     def Masterful_Stab(self):
@@ -454,11 +470,11 @@ class CombatSim:
         self.damage(12, 4)
 
     def Noxious_Fumes(self):
-        p.apply("noxious_fumes", self.player, intensity=2+self.upgrades)
+        spirecomm.spire.powers.apply("noxious_fumes", self.player, intensity=2+self.upgrades)
 
     def Predator(self):
         self.damage(15, 5)
-        p.apply("draw_next", self.player, duration=1, intensity=2)
+        spirecomm.spire.powers.apply("draw_next", self.player, duration=1, intensity=2)
 
     def Reflex(self):
         # TODO
@@ -481,47 +497,47 @@ class CombatSim:
         pass
 
     def Terror(self):
-        p.apply("vulnerable", duration=99)
+        spirecomm.spire.powers.apply("vulnerable", duration=99)
 
     #todo: check id
     def Well_Laid_Plans(self):
-        p.apply("retain", intensity=1+self.upgrades)
+        spirecomm.spire.powers.apply("retain", intensity=1+self.upgrades)
 
     def A_Thousand_Cuts(self):
-        p.apply("thousand_cuts", intensity=1+self.upgrades)
+        spirecomm.spire.powers.apply("thousand_cuts", intensity=1+self.upgrades)
 
     def Adrenaline(self):
         self.draw(2)
         self.player.energy += 1
 
     def After_Image(self):
-        p.apply("after_image", intensity=1+self.upgrades)
+        spirecomm.spire.powers.apply("after_image", intensity=1+self.upgrades)
 
     def Alchemize(self):
         pass
 
     def Bullet_Time(self):
         # TODO
-        p.apply("bullet_time")
+        spirecomm.spire.powers.apply("bullet_time")
         # TODO
-        p.apply("no_draw", duration=1)
+        spirecomm.spire.powers.apply("no_draw", duration=1)
 
     def Burst(self):
-        p.apply("burst", duration=1, intensity=1+self.upgrades)
+        spirecomm.spire.powers.apply("burst", duration=1, intensity=1+self.upgrades)
 
     def Corpse_Explosion(self):
         self.poison(6, 3)
-        p.apply("corpse_explosion", self.target)
+        spirecomm.spire.powers.apply("corpse_explosion", self.target)
 
     def Die_Die_Die(self):
         self.damage_all(13, 4)
 
     def Doppelganger(self):
-        p.apply("next_draw", duration=1, intensity=self.player.energy)
-        p.apply("next_energy", duration=1, intensity=self.player.energy)
+        spirecomm.spire.powers.apply("next_draw", duration=1, intensity=self.player.energy)
+        spirecomm.spire.powers.apply("next_energy", duration=1, intensity=self.player.energy)
 
     def Envenom(self):
-        p.apply("envenom", intensity=1)
+        spirecomm.spire.powers.apply("envenom", intensity=1)
 
     def Glass_Knife(self):
         # TODO
@@ -534,14 +550,14 @@ class CombatSim:
         pass
 
     def Malaise(self):
-        p.apply("strength", self.target, intensity=-1*self.player.energy)
-        p.apply("weak", self.target, duration=self.player.energy)
+        spirecomm.spire.powers.apply("strength", self.target, intensity=-1*self.player.energy)
+        spirecomm.spire.powers.apply("weak", self.target, duration=self.player.energy)
 
     def Nightmare(self):
-        p.apply("nightmare", random.choice(self.hand))
+        spirecomm.spire.powers.apply("nightmare", random.choice(self.hand))
 
     def Phantasmal_Killer(self):
-        p.apply("double_damage", duration=1)
+        spirecomm.spire.powers.apply("double_damage", duration=1)
 
     def Storm_Of_Steel(self):
         n = len(self.hand)
@@ -551,14 +567,14 @@ class CombatSim:
 
     def Tools_Of_The_Trade(self):
         # todo
-        p.apply("tools_of_the_trade")
+        spirecomm.spire.powers.apply("tools_of_the_trade")
 
     def Unload(self):
         self.damage(14, 4)
         for c in self.hand:
-            if c.card_type != CardType.ATTACK:
+            if c.card_type != spirecomm.spire.card.CardType.ATTACK:
                 self.discard(card=c)
 
     def Wraith_Form(self):
-        p.apply("intangible", duration=2+self.upgrades)
-        p.apply("wraith_form", intensity=2)
+        spirecomm.spire.powers.apply("intangible", duration=2+self.upgrades)
+        spirecomm.spire.powers.apply("wraith_form", intensity=2)

@@ -1,7 +1,7 @@
 from enum import Enum
 from random import random
 
-from spirecomm.spire.move_info import MoveInfo, Move, Intent
+from spirecomm.spire.move_info import MoveInfo, Intent
 from spirecomm.spire.powers import SimPower
 
 
@@ -37,7 +37,7 @@ class Character:
         if self.current_hp is None:
             self.current_hp = self.max_hp
         self.block = block
-        self.powers = {"strength": 0, "dexterity": 0, "focus": 0}
+        self.powers = {"strength": 0, "dexterity": 0, "focus": 0, "artifact": 0}
 
     def on_start_turn(self):
         for p in self.powers:
@@ -61,19 +61,18 @@ class Character:
 
 class Player(Character):
 
-    def __init__(self, max_hp, hand, current_hp=None, block=0, energy=0):
+    def __init__(self, max_hp, current_hp=None, block=0, energy=0):
         super().__init__(max_hp, current_hp, block)
         self.energy = energy
         self.orbs = []
-        self.hand = hand
+        # self.hand = hand
 
     @classmethod
     def from_json(cls, json_object):
-        print(json_object.keys())
-        player_object = json_object["combat_state"]["player"]
-        print(player_object)
-        player = cls(player_object["max_hp"], json_object["combat_state"]["hand"], player_object["current_hp"],
-                     player_object["block"], player_object["energy"])
+        # print(json_object.keys())
+        # player_object = json_object["combat_state"]["player"]
+        # print(player_object)
+        player = cls(json_object["max_hp"], json_object["current_hp"], json_object["block"], json_object["energy"])
         # player.powers = [Power.from_json(json_power) for json_power in json_object["powers"]]
         # player.orbs = [Orb.from_json(orb) for orb in json_object["orbs"]]
         return player
@@ -129,6 +128,20 @@ class Monster(Character):
             probs = [x.prob for x in possible_moves[0]]
             return random.choices(possible_moves[0], probs)
 
+    def get_move_name_by_id(self, id):
+        for key, val in MoveInfo.MOVE_IDS[self.name]:
+            if val == id:
+                return key
+
+    def move_at_limit(self, move):
+        """Returns True if the move cannot be used because if hit its limit (e.g. 2 in a row), False otherwise."""
+        move_id = MoveInfo.MOVE_IDS[self.name][move.name]
+        if self.last_move_id == move:
+            if self.second_last_move_id == move_id:
+                return move.limit <= 2
+            return move.limit == 1
+        return False
+
     def split(self):
         if self.name == "Acid Slime (L)":
             name = "Acid Slime (M)"
@@ -142,9 +155,15 @@ class Monster(Character):
 
     def __eq__(self, other):
         if self.name == other.name and self.current_hp == other.current_hp and self.max_hp == other.max_hp and self.block == other.block:
-            if len(self.powers) == len(other.powers):
-                for i in range(len(self.powers)):
-                    if self.powers[i] != other.powers[i]:
-                        return False
+            if self.powers == other.powers:
                 return True
+            return False
+            # if len(self.powers) == len(other.powers):
+            #     for i in range(len(self.powers)):
+            #         if self.powers[i] != other.powers[i]:
+            #             return False
+            #     return True
         return False
+
+    def __hash__(self):
+        return hash(self.monster_id)

@@ -1,8 +1,14 @@
 import time
 import random
+import copy
+import math
+import operator
 
+from spirecomm.ai.combatSim import CombatSim
+from spirecomm.ai.mcts import MCTS
+from spirecomm.spire.move_info import Intent
 from spirecomm.spire.game import Game
-from spirecomm.spire.character import Intent, PlayerClass
+from spirecomm.spire.character import PlayerClass
 import spirecomm.spire.card
 from spirecomm.spire.screen import RestOption
 from spirecomm.communication.action import *
@@ -22,6 +28,7 @@ class SimpleAgent:
         self.priorities = Priority()
         self.change_class(chosen_class)
 
+
     def change_class(self, new_class):
         self.chosen_class = new_class
         if self.chosen_class == PlayerClass.THE_SILENT:
@@ -34,7 +41,11 @@ class SimpleAgent:
             self.priorities = random.choice(list(PlayerClass))
 
     def handle_error(self, error):
+        # self.logfile.write(str(error))
+        # print("error: " + str(error), file=self.logfile)
+        # self.logfile.close()
         raise Exception(error)
+        # pass
 
     def get_next_action_in_game(self, game_state):
         self.game = game_state
@@ -44,15 +55,60 @@ class SimpleAgent:
         if self.game.proceed_available:
             return ProceedAction()
         if self.game.play_available:
-            if self.game.room_type == "MonsterRoomBoss" and len(self.game.get_real_potions()) > 0:
-                potion_action = self.use_next_potion()
-                if potion_action is not None:
-                    return potion_action
-            return self.get_play_card_action()
+            # if self.game.room_type == "MonsterRoomBoss" and len(self.game.get_real_potions()) > 0:
+            #     potion_action = self.use_next_potion()
+            #     if potion_action is not None:
+            #         return potion_action
+            # return EndTurnAction()
+            # return PlayCardAction(card_index=1)
+            return self.get_play_card_action2()
         if self.game.end_available:
             return EndTurnAction()
         if self.game.cancel_available:
             return CancelAction()
+
+    def get_play_card_action2(self):
+
+        # playable_cards = [card for card in self.game.hand if card.is_playable]
+        # if len(playable_cards) == 0:
+        #     return EndTurnAction()
+        #
+        # card_to_play = random.choice(playable_cards)
+        # if card_to_play.has_target:
+        #     available_monsters = [monster for monster in self.game.monsters if monster.current_hp > 0 and not monster.half_dead and not monster.is_gone]
+        #     if len(available_monsters) == 0:
+        #         return EndTurnAction()
+        #     target = random.choice(available_monsters)
+        #     return PlayCardAction(card=card_to_play, target_monster=target)
+        # else:
+        #     return PlayCardAction(card=card_to_play)
+        state = {
+            'player': self.game.player,
+            'deck': self.game.deck,
+            'relics': self.game.relics,
+            'potions': self.game.potions,
+            'hand': self.game.hand,
+            'draw_pile': self.game.draw_pile,
+            'discard_pile': self.game.discard_pile,
+            'exhaust_pile': self.game.exhaust_pile,
+            'monsters': self.game.monsters,
+            'turn': self.game.turn
+        }
+        sim = CombatSim.from_json(state)
+        # mcts = MCTS(sim)
+        # action = mcts.get_action()
+        card = self.game.hand[0]
+        if card.has_target:
+            target = self.game.monsters[0]
+            return PlayCardAction(card=card, target_monster=target)
+        return PlayCardAction(card=card)
+        # # print(action[0], action[1])
+        # # try:
+        # return PlayCardAction(card=action[0], target_monster=action[1])
+        # except:
+        #     print("DID NOT WORK")
+
+
 
     def get_next_action_out_of_game(self):
         return StartGameAction(self.chosen_class)
@@ -178,6 +234,7 @@ class SimpleAgent:
                 if self.game.gold >= relic.price:
                     return BuyRelicAction(relic)
             return CancelAction()
+
         elif self.game.screen_type == ScreenType.GRID:
             if not self.game.choice_available:
                 return ProceedAction()
@@ -272,5 +329,5 @@ class SimpleAgent:
             if choice.x == chosen_x:
                 return ChooseMapNodeAction(choice)
         # This should never happen
-        return ChooseAction(0)
+        return ChooseMapNodeAction(self.game.screen.next_nodes[0])
 

@@ -1,6 +1,7 @@
+import copy
 import math
 import operator
-# from spirecomm.ai.combatSim import CombatSim
+import random
 
 
 def backpropagate(node, result):
@@ -12,20 +13,24 @@ def backpropagate(node, result):
 
 
 class MCTS:
-    def __init__(self, sim, combat_state):
+    def __init__(self, sim):
         self.sim = sim
-        root = Tree(combat_state)
+        self.root = Tree(sim.get_state())
+        # print("INITIALIZE MCTS")
+        # print("root player hp: {0}, root monster hp: {1}".format(self.root.state["player"].current_hp, self.root.state["monsters"][0].current_hp))
 
     def get_action(self, n=100):
         """Returns the best action after running n rounds of MCTS."""
         self.build_tree(n)
         best = max(self.root.children, key=operator.attrgetter("value"))
+        # print("Best card: {0}, best target: {1}".format(best.card.name, best.target))
         return best.card, best.target
 
     def build_tree(self, n):
         """Runs the process of selection, expansion, rollout, backpropagation n times."""
         for i in range(n):
-            node_to_expand = self.select()
+            # print(self.root.state["player"].current_hp, self.root.state["monsters"][0].current_hp)
+            node_to_expand = self.select(self.root)
             rollout_node = self.expand(node_to_expand)
             result = self.rollout(rollout_node)
             backpropagate(rollout_node, result)
@@ -50,46 +55,54 @@ class MCTS:
             Tree. the node to be simulated next.
         """
         self.sim.change_state(node.state)
-        self.sim.play(node.card, node.target)
+        if node.card is not None:
+            self.sim.play(node.card, node.target)
         if self.sim.is_over():
+            # print("sim over", node)
             return node
         else:
             expanded = {(n.card, n.target) for n in node.children}
             possible = node.get_possible_actions()
-            action_to_expand = (possible - expanded).sample(1)
-            child = Tree(self.sim.get_state(), action_to_expand)
+            action_to_expand = random.sample((possible - expanded), 1)[0]
+            # print(action_to_expand)
+            child = Tree(self.sim.get_state(), action=action_to_expand)
             node.add_child(child)
+            # print("else", child)
             return child
 
     def rollout(self, node):
         self.sim.change_state(node.state)
+        # print(node.card)
         result = self.sim.sim_combat(node.card, node.target)
         return result
 
 
 class Tree:
-    def __init__(self, state, card=None, target=None):
+    def __init__(self, state, action=(None, None)):
         self.state = state
-        self.action = (card, target)
+        self.card = copy.deepcopy(action[0])
+        self.target = copy.deepcopy(action[1])
         self.children = []
         self.parent = None
         self.wins = 0
         self.total = 0
         self.value = 0
 
-    def add_child(self, node, result):
+    def add_child(self, node):
         self.children.append(node)
         node.parent = self
 
     def increment(self, result):
         self.wins += result
         self.total += 1
-        self.value = self.calc_value()
+        if self.parent:
+            self.value = self.calc_value()
 
     def calc_value(self):
         ave_reward = self.wins/self.total
         parent_sims = self.parent.total
-
+        if parent_sims == 0:
+            return 0
         return ave_reward + math.sqrt(2)*(math.sqrt(math.log(parent_sims)/self.total))
 
     def fully_expanded(self):
@@ -100,7 +113,8 @@ class Tree:
 
     def get_possible_actions(self):
         actions = set()
-        for c in self.state['hand']:
+        playable = [c for c in self.state['hand'] if self.state['player'].can_play(c)]
+        for c in playable:
             if c.has_target:
                 for t in self.state['monsters']:
                     actions.add((c, t))

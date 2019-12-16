@@ -1,5 +1,5 @@
 from enum import Enum
-from random import random
+import random
 
 
 class Intent(Enum):
@@ -26,6 +26,18 @@ class Intent(Enum):
 
 
 class MoveInfo:
+    MOVE_IDS = {
+        "Cultist": {"Incantation": 3, "Dark Strike": 1},
+        "Jaw Worm": {"Chomp": 1, "Bellow": 2, "Thrash": 3},
+        "Acid Slime (S)": {"Tackle": 1, "Lick": 2},
+        "Acid Slime (M)": {"Corrosive Spit": 1, "Tackle": 2, "Lick": 4},
+        "Acid Slime (L)": {"Corrosive Spit": 1, "Tackle": 2, "Split": 3, "Lick": 4},
+        "Spike Slime (S)": {"Tackle": 1},
+        "Spike Slime (M)": {"Flame Tackle": 1, "Lick": 4},
+        "Spike Slime (L)": {"Flame Tackle": 1, "Split": 3, "Lick": 4},
+        "Green Louse": {"Bite": 3, "Spit Web": 4},
+        "Red Louse": {"Bite": 3, "Grow": 4}
+    }
 
     def __init__(self, monster):
         self.monster = monster
@@ -42,7 +54,7 @@ class MoveInfo:
             chomp = Move("Chomp", Intent.ATTACK, damage=11, prob=.25)
             thrash = Move("Thrash", Intent.ATTACK_DEFEND, damage=7, block=5, prob=.30)
             bellow = Move("Bellow", Intent.DEFEND_BUFF, block=6, buff_name="strength", intensity=3, prob=.45)
-            self.schedule = [chomp, (chomp, thrash, bellow)]
+            self.schedule = [(chomp,), (chomp, thrash, bellow)]
         elif "Acid Slime" in n:
             lick = Move("Lick", Intent.DEBUFF, debuff_name="weak", duration=1, prob=.5)
             tackle = Move("Tackle", Intent.ATTACK, damage=3, prob=.5)
@@ -81,10 +93,12 @@ class MoveInfo:
             bite = Move("Bite", Intent.ATTACK, limit=2, prob=.75)
             if "Green" in n:
                 bite.damage = d1
-                spit_web = Move("Spit_Web", Intent.DEBUFF, debuff_name="weak", duration=2, limit=2, prob=.25)
+                spit_web = Move("Spit Web", Intent.DEBUFF, debuff_name="weak", duration=2, limit=2, prob=.25)
+                self.schedule = [(bite, spit_web)]
             else:
                 bite.damage = d2
                 grow = Move("Grow", Intent.BUFF, buff_name="strength", intensity=3, limit=2, prob=.25)
+                self.schedule = [(bite, grow)]
         else:
             pass
         
@@ -104,3 +118,5 @@ class Move:
         self.duration = duration
         self.limit = limit
         self.prob = prob
+
+

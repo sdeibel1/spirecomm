@@ -26,6 +26,8 @@ class Action:
         :param coordinator: The coordinator which will be used to execute the action
         :return: None
         """
+        # print(self.command)
+        # print(self.command, file=open("agent_log.txt", "a").close())
         coordinator.send_message(self.command)
 
 

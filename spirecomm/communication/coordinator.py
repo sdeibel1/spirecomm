@@ -218,4 +218,3 @@ class Coordinator:
             return self.last_game_state.screen.victory
         else:
             return False
-

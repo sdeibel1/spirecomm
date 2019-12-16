@@ -67,6 +67,10 @@ class Game:
         self.proceed_available = False
         self.cancel_available = False
 
+
+        #SEBASTIAN
+        self.game_state = ""
+
     @classmethod
     def from_json(cls, json_state, available_commands):
         game = cls()
@@ -84,6 +88,9 @@ class Game:
         game.map = spirecomm.spire.map.Map.from_json(json_state.get("map"))
         game.potions = [spirecomm.spire.potion.Potion.from_json(potion) for potion in json_state.get("potions")]
         game.act_boss = json_state.get("act_boss", None)
+
+        # SEBASTIAN
+        game.game_state = json_state
 
         # Screen State
 

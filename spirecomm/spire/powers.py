@@ -1,4 +1,4 @@
-from spirecomm.spire.card import CardType, Card, CardRarity
+import spirecomm.spire.card
 
 
 class SimPower:
@@ -19,21 +19,29 @@ class SimPower:
             target = cls.sim.player
         if key == "slime":
             for _ in range(intensity):
-                cls.sim.discard_pile.append(Card("slime", "slime", CardType.STATUS, CardRarity.BASIC, is_playable=False))
+                cls.sim.discard_pile.append(spirecomm.spire.card.Card("slime", "slime", spirecomm.spire.card.CardType.STATUS,
+                                                                      spirecomm.spire.card.CardRarity.BASIC, is_playable=False))
                 return
 
         if target.powers["artifact"] > 0:
             target.powers["artifact"] -= 1
             return
 
-        if target.powers[key]:
+        if key in target.powers:
+            # print(key, target, intensity, duration)
+            if isinstance(target.powers[key], int):
+                target.powers[key] += intensity
+                return
             if intensity > -1:
-                target.powers[key]["intensity"] += intensity
+                if "intensity" in target.powers[key]:
+                    target.powers[key]["intensity"] += intensity
+                else:
+                    target.powers[key]["intensity"] = intensity
             if duration > -1:
-                target.powers[key]["duration"] += duration
-        else:
-            target.powers[key]["intensity"] = intensity
-            target.powers[key]["duration"] = duration
+                if "duration" in target.powers[key]:
+                    target.powers[key]["duration"] += duration
+                else:
+                    target.powers[key]["duration"] = duration
 
         if key in {"strength_temp", "dexterity_temp", "focus_temp"}:
             attr = key[:key.index("_")]

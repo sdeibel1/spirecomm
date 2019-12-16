@@ -75,8 +75,4 @@ def launch_gui():
     CommunicationApp(communication_coordinator).run()
 
 if __name__ == "__main__":
-
-    print("hi")
     launch_gui()
-    print("bye")
-

@@ -76,6 +76,7 @@ class Coordinator:
         :type message: str
         :return: None
         """
+        # print(message) # FOR TESTING
         self.output_queue.put(message)
         self.game_is_ready = False
 

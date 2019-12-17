@@ -1,7 +1,8 @@
 from enum import Enum
-from random import random
+import random
 
 from spirecomm.spire.move_info import MoveInfo, Intent
+from spirecomm.spire.power import Power
 from spirecomm.spire.powers import SimPower
 
 
@@ -37,24 +38,25 @@ class Character:
         if self.current_hp is None:
             self.current_hp = self.max_hp
         self.block = block
-        self.powers = {"strength": 0, "dexterity": 0, "focus": 0, "artifact": 0}
+        self.powers = []
+        self.sim_powers = {"strength": 0, "dexterity": 0, "focus": 0, "artifact": 0}
 
     def on_start_turn(self):
-        for p in self.powers:
+        for p in self.sim_powers:
             SimPower.on_start_turn(p, self)
 
     def on_end_turn(self):
-        for p in self.powers:
+        for p in self.sim_powers:
             SimPower.end_of_turn(p, self)
 
     def on_card_play(self):
-        for p in self.powers:
+        for p in self.sim_powers:
             SimPower.on_card_play(p, self)
 
 
 
     def affected_by(self, key):
-        if key in self.powers and not (self.powers[key]["intensity"] <= 0 and self.powers[key]["duration"] <= 0):
+        if key in self.sim_powers and not (self.sim_powers[key]["intensity"] <= 0 and self.sim_powers[key]["duration"] <= 0):
             return True
         return False
 
@@ -73,7 +75,7 @@ class Player(Character):
         # player_object = json_object["combat_state"]["player"]
         # print(player_object)
         player = cls(json_object["max_hp"], json_object["current_hp"], json_object["block"], json_object["energy"])
-        # player.powers = [Power.from_json(json_power) for json_power in json_object["powers"]]
+        player.powers = [Power.from_json(json_power) for json_power in json_object["powers"]]
         # player.orbs = [Orb.from_json(orb) for orb in json_object["orbs"]]
         return player
 
@@ -84,7 +86,7 @@ class Player(Character):
 class Monster(Character):
 
     def __init__(self, name, monster_id, max_hp, current_hp, block, intent, half_dead, is_gone, move_id=-1, last_move_id=None, second_last_move_id=None, move_base_damage=0, move_adjusted_damage=0, move_hits=0):
-        super().__init__(max_hp, current_hp, block)
+        super().__init__(max_hp + 5, current_hp + 5, block)
         self.name = name
         self.monster_id = monster_id
         self.intent = intent
@@ -98,10 +100,10 @@ class Monster(Character):
         self.move_hits = move_hits
 
         self.move_info = MoveInfo(self)
-
-        if "Louse" in name and max_hp == current_hp:
-            block_amt = random.randint(3,7)
-            self.powers["curl up"]["intensity"] = block_amt
+        #
+        # if "Louse" in name and max_hp == current_hp:
+        #     block_amt = random.randint(3, 7)
+        #     self.powers["curl up"]["intensity"] = block_amt
 
     @classmethod
     def from_json(cls, json_object):
@@ -120,7 +122,7 @@ class Monster(Character):
         move_adjusted_damage = json_object.get("move_adjusted_damage", 0)
         move_hits = json_object.get("move_hits", 0)
         monster = cls(name, monster_id, max_hp, current_hp, block, intent, half_dead, is_gone, move_id, last_move_id, second_last_move_id, move_base_damage, move_adjusted_damage, move_hits)
-        # monster.powers = [Power.from_json(json_power) for json_power in json_object["powers"]]
+        monster.powers = [Power.from_json(json_power) for json_power in json_object["powers"]]
         return monster
 
     def get_move_from_possible(self, possible_moves):
@@ -155,14 +157,14 @@ class Monster(Character):
 
     def __eq__(self, other):
         if self.name == other.name and self.current_hp == other.current_hp and self.max_hp == other.max_hp and self.block == other.block:
-            if self.powers == other.powers:
-                return True
-            return False
-            # if len(self.powers) == len(other.powers):
-            #     for i in range(len(self.powers)):
-            #         if self.powers[i] != other.powers[i]:
-            #             return False
+            # if self.powers == other.powers:
             #     return True
+            # return False
+            if len(self.powers) == len(other.powers):
+                for i in range(len(self.powers)):
+                    if self.powers[i] != other.powers[i]:
+                        return False
+                return True
         return False
 
     def __hash__(self):

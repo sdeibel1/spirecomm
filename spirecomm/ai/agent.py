@@ -28,6 +28,21 @@ class SimpleAgent:
         self.priorities = Priority()
         self.change_class(chosen_class)
 
+        state = {
+            'player': self.game.player,
+            'deck': self.game.deck,
+            'relics': self.game.relics,
+            'potions': self.game.potions,
+            'hand': self.game.hand,
+            'draw_pile': self.game.draw_pile,
+            'discard_pile': self.game.discard_pile,
+            'exhaust_pile': self.game.exhaust_pile,
+            'monsters': self.game.monsters,
+            'turn': self.game.turn
+        }
+        self.sim = CombatSim(state)
+        self.mcts = MCTS(self.sim)
+
 
     def change_class(self, new_class):
         self.chosen_class = new_class
@@ -94,14 +109,40 @@ class SimpleAgent:
             'monsters': self.game.monsters,
             'turn': self.game.turn
         }
-        sim = CombatSim.from_json(state)
-        # mcts = MCTS(sim)
-        # action = mcts.get_action()
-        card = self.game.hand[0]
-        if card.has_target:
-            target = self.game.monsters[0]
-            return PlayCardAction(card=card, target_monster=target)
-        return PlayCardAction(card=card)
+        # # sim = CombatSim(state)
+        # # mcts = MCTS(sim)
+        self.mcts.change_state(state)
+        action = self.mcts.get_action()
+        card2 = action[0]
+        target = action[1]
+        card_index = self.sim.hand.index(card2)
+        if card2.has_target:
+            return PlayCardAction(card=card2, target_index=target)
+        else:
+            return PlayCardAction(card=card2)
+
+
+
+        # playable_cards = [card for card in self.game.hand if card.is_playable]
+        # if len(playable_cards) == 0:
+        #     return EndTurnAction()
+        #
+        # card_to_play = random.choice(playable_cards)
+        # if card_to_play.has_target:
+        #     available_monsters = [monster for monster in self.game.monsters if monster.current_hp > 0 and not monster.half_dead and not monster.is_gone]
+        #     if len(available_monsters) == 0:
+        #         return EndTurnAction()
+        #     target = random.choice(available_monsters)
+        #     return PlayCardAction(card=card_to_play, target_monster=target)
+        # else:
+        #     return PlayCardAction(card=card_to_play)
+
+        # card = self.game.hand[0]
+        # if card.has_target:
+        #     target = self.game.monsters[0]
+        #     return PlayCardAction(card=card, target_monster=target)
+        # else:
+        #     return PlayCardAction(card=card)
         # # print(action[0], action[1])
         # # try:
         # return PlayCardAction(card=action[0], target_monster=action[1])
@@ -191,7 +232,7 @@ class SimpleAgent:
 
     def handle_screen(self):
         if self.game.screen_type == ScreenType.EVENT:
-            if self.game.screen.event_id in ["Vampires", "Masked Bandits", "Knowing Skull", "Ghosts", "Liars Game", "Golden Idol", "Drug Dealer", "The Library"]:
+            if self.game.screen.event_id in ["Neow Event", "Vampires", "Masked Bandits", "Knowing Skull", "Ghosts", "Liars Game", "Golden Idol", "Drug Dealer", "The Library"]:
                 return ChooseAction(len(self.game.screen.options) - 1)
             else:
                 return ChooseAction(0)

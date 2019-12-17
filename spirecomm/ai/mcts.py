@@ -16,15 +16,24 @@ class MCTS:
     def __init__(self, sim):
         self.sim = sim
         self.root = Tree(sim.get_state())
+        self.num = 0
         # print("INITIALIZE MCTS")
         # print("root player hp: {0}, root monster hp: {1}".format(self.root.state["player"].current_hp, self.root.state["monsters"][0].current_hp))
 
-    def get_action(self, n=100):
+    def change_state(self, state):
+        self.root = Tree(state)
+
+    def get_action(self, n=200):
         """Returns the best action after running n rounds of MCTS."""
         self.build_tree(n)
+        self.sim.change_state(self.root.state)
         best = max(self.root.children, key=operator.attrgetter("value"))
+
+        # print("wins:", best.wins, "total:", best.total)
         # print("Best card: {0}, best target: {1}".format(best.card.name, best.target))
+
         return best.card, best.target
+
 
     def build_tree(self, n):
         """Runs the process of selection, expansion, rollout, backpropagation n times."""
@@ -49,7 +58,7 @@ class MCTS:
         Otherwise, returns the node for expansion.
 
         Args:
-            node -- the node to expand.
+            node -- the node for expansion.
 
         Returns:
             Tree. the node to be simulated next.
@@ -57,8 +66,7 @@ class MCTS:
         self.sim.change_state(node.state)
         if node.card is not None:
             self.sim.play(node.card, node.target)
-        if self.sim.is_over():
-            # print("sim over", node)
+        if node.fully_expanded():
             return node
         else:
             expanded = {(n.card, n.target) for n in node.children}
@@ -79,9 +87,13 @@ class MCTS:
 
 class Tree:
     def __init__(self, state, action=(None, None)):
-        self.state = state
-        self.card = copy.deepcopy(action[0])
-        self.target = copy.deepcopy(action[1])
+        self.state = copy.deepcopy(state)
+        if action[0] is not None:
+            self.card = copy.deepcopy(action[0])
+        else:
+            self.card = action[0]
+        self.target = action[1]
+        # self.target = copy.deepcopy(action[1])
         self.children = []
         self.parent = None
         self.wins = 0
@@ -116,8 +128,11 @@ class Tree:
         playable = [c for c in self.state['hand'] if self.state['player'].can_play(c)]
         for c in playable:
             if c.has_target:
-                for t in self.state['monsters']:
-                    actions.add((c, t))
+                for i in range(len(self.state['monsters'])):
+                    actions.add((c, i))
+                # for t in self.state['monsters']:
+                #     actions.add((c, t))
             else:
-                actions.add((c, self.state['player']))
+                actions.add((c, -1))
+                # actions.add((c, self.state['player']))
         return actions

@@ -99,6 +99,23 @@ class MoveInfo:
                 bite.damage = d2
                 grow = Move("Grow", Intent.BUFF, buff_name="strength", intensity=3, limit=2, prob=.25)
                 self.schedule = [(bite, grow)]
+        elif "Slaver" in n:
+            stab = Move("Stab", Intent.ATTACK, limit=2)
+            if "Blue" in n:
+                stab.prob = .60
+                stab.damage = 12
+                rake = Move("Rake", Intent.ATTACK_DEBUFF, damage=7, debuff_name="weak", duration=1, prob=.40)
+                self.schedule = [(stab, rake)]
+            else:
+                stab.prob = .45
+                stab.damage = 13
+                scrape = Move("Scrape", Intent.ATTACK_DEBUFF, damage=8, debuff_name="vulnerable", duration=1, prob=.55)
+                entangle = Move("Entangle", Intent.DEBUFF, debuff_name="entangled", duration=1)
+                self.schedule = [(stab,), (scrape,), (entangle,), (stab, scrape)]
+        elif n == "Fungi Beast":
+            bite = Move("Bite", Intent.ATTACK, damage=6, limit=2, prob=.60)
+            grow = Move("Grow", Intent.BUFF, buff_name="strength", intensity=3, limit=1, prob=.40)
+
         else:
             pass
         

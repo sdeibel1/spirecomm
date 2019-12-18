@@ -23,9 +23,13 @@ class MCTS:
     def change_state(self, state):
         self.root = Tree(state)
 
-    def get_action(self, n=200):
+    def get_action(self, n=300):
         """Returns the best action after running n rounds of MCTS."""
         self.build_tree(n)
+        with open("mcst_log.txt", "a") as f:
+            for n in self.root.children:
+                f.write(str(n.card.name) + ': ' + str(n.wins) + ' wins, ' + str(n.total) + ' total\n')
+        f.close()
         self.sim.change_state(self.root.state)
         best = max(self.root.children, key=operator.attrgetter("value"))
 
@@ -47,7 +51,7 @@ class MCTS:
     # node is the root node at which we start, recursively goes down and selects
     def select(self, node):
         """Recursively selects a node for expansion."""
-        if node.fully_expanded():
+        if node.fully_expanded() and node.children:
             max_child = max(node.children, key=operator.attrgetter("value"))
             return self.select(max_child)
         else:
@@ -128,8 +132,9 @@ class Tree:
         playable = [c for c in self.state['hand'] if self.state['player'].can_play(c)]
         for c in playable:
             if c.has_target:
-                for i in range(len(self.state['monsters'])):
-                    actions.add((c, i))
+                for i, m in enumerate(self.state['monsters']):
+                    if not m.is_gone:
+                        actions.add((c, i))
                 # for t in self.state['monsters']:
                 #     actions.add((c, t))
             else:

@@ -17,6 +17,8 @@ class SimPower:
     def apply(cls, key, target=None, intensity=-1, duration=-1):
         if target is None:
             target = cls.sim.player
+        elif isinstance(target, int):
+            target = cls.sim.monsters[target]
         if key == "slime":
             for _ in range(intensity):
                 cls.sim.discard_pile.append(spirecomm.spire.card.Card("slime", "slime", spirecomm.spire.card.CardType.STATUS,
@@ -81,6 +83,8 @@ class SimPower:
         power = source.sim_powers[key]
         if key == "poison":
             source.current_hp -= power
+            if power >= 1:
+                source.sim_powers[key] -= 1
         if key == "dodge_and_roll":
             source.block += power["intensity"]
         if key == "infinity_blades":
@@ -110,9 +114,6 @@ class SimPower:
             if power["duration"] == 0:
                 source.sim_powers.pop(key)
 
-        # if key in {"weak", "vulnerable", "frail", "choke", "no_draw", "no_block", "entangled", "burst", "double_damage"}:
-        #     if power["duration"] > 0:
-        #         power["duration"] -= 1
         # intensity and duration
         if key in {"strength_temp", "dexterity_temp", "focus_temp"}:
             attr = key[:key.index("_")]
@@ -129,4 +130,5 @@ class SimPower:
         if key == "corpse_explosion":
             for m in cls.sim.monsters:
                 cls.sim.damage(power["intensity"], is_attack=False, target=m)
-
+        if hasattr(source, "name") and source.name == "Fungi Beast":
+            cls.apply("vulnerable", cls.sim.player, duration=3)

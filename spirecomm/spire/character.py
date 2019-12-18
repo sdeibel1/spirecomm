@@ -39,7 +39,7 @@ class Character:
             self.current_hp = self.max_hp
         self.block = block
         self.powers = []
-        self.sim_powers = {"strength": 0, "dexterity": 0, "focus": 0, "artifact": 0}
+        self.sim_powers = {"strength": 0, "dexterity": 0, "focus": 0, "artifact": 0, "poison": 0}
 
     def on_start_turn(self):
         for p in self.sim_powers:
@@ -52,8 +52,6 @@ class Character:
     def on_card_play(self):
         for p in self.sim_powers:
             SimPower.on_card_play(p, self)
-
-
 
     def affected_by(self, key):
         if key in self.sim_powers and not (self.sim_powers[key]["intensity"] <= 0 and self.sim_powers[key]["duration"] <= 0):
@@ -80,7 +78,7 @@ class Player(Character):
         return player
 
     def can_play(self, card):
-        return True if self.energy >= card.cost else False
+        return True if self.energy >= card.cost and card.is_playable else False
 
 
 class Monster(Character):
@@ -130,9 +128,10 @@ class Monster(Character):
             probs = [x.prob for x in possible_moves[0]]
             return random.choices(possible_moves[0], probs)
 
-    def get_move_name_by_id(self, id):
-        for key, val in MoveInfo.MOVE_IDS[self.name]:
-            if val == id:
+    def get_move_name_by_id(self, num):
+        moves = MoveInfo.MOVE_IDS[self.name]
+        for key in moves:
+            if moves[key] == num:
                 return key
 
     def move_at_limit(self, move):

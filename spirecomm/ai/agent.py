@@ -117,6 +117,8 @@ class SimpleAgent:
         target = action[1]
         card_index = self.sim.hand.index(card2)
         if card2.has_target:
+            if self.game.monsters[target].is_gone:
+                raise Exception("That monster is dead!")
             return PlayCardAction(card=card2, target_index=target)
         else:
             return PlayCardAction(card=card2)
